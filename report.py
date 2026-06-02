@@ -482,32 +482,6 @@ class ReportService:
             ]
         )
 
-    def _asset_detail_table_style(self) -> TableStyle:
-        """Per-asset detail tables — indigo header, tinted row alternation."""
-        return TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(self._INDIGO)),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 8.5),
-                ("FONTSIZE", (0, 1), (-1, -1), 8.5),
-                ("LEADING", (0, 0), (-1, -1), 12),
-                ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor(self._NAVY)),
-                ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor(self._BORDER)),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                (
-                    "ROWBACKGROUNDS",
-                    (0, 1),
-                    (-1, -1),
-                    [colors.white, colors.HexColor(self._INDIGO_LT)],
-                ),
-                ("LEFTPADDING", (0, 0), (-1, -1), 7),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ]
-        )
-
     @staticmethod
     def _col_widths(width: float, fracs: list[float]) -> list[float]:
         """Column widths that sum exactly to the usable content width."""
@@ -707,8 +681,8 @@ class ReportService:
                     seen_ctrl.add(k)
                     unique_failing.append(r)
 
-            # ── Asset header band (uniform navy theme) ─────────────────────
-            header_bg = colors.HexColor(self._NAVY)
+            # ── Asset header band — indigo, distinct from Asset Inventory navy ──
+            header_bg = colors.HexColor(self._INDIGO)
 
             header_left = Paragraph(
                 f"&#x25A0; &nbsp; {ip}"
@@ -716,10 +690,24 @@ class ReportService:
                 asset_header_style,
             )
             header_right = Paragraph(f"Asset {asset_idx} of {total}", asset_index_style)
-            header_table = Table(
+            header_inner = Table(
                 [[header_left, header_right]],
-                colWidths=[W * 0.72, W * 0.28],
+                colWidths=self._col_widths(W - 20, [0.72, 0.28]),
             )
+            header_inner.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), header_bg),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                        ("GRID", (0, 0), (-1, -1), 0, header_bg),
+                    ]
+                )
+            )
+            header_table = Table([[header_inner]], colWidths=[W])
             header_table.setStyle(
                 TableStyle(
                     [
@@ -815,13 +803,6 @@ class ReportService:
                                 (-1, -2),
                                 0.25,
                                 colors.HexColor("#e2e8f0"),
-                            ),
-                            (
-                                "LINEBEFORE",
-                                (0, 0),
-                                (0, -1),
-                                2.5,
-                                colors.HexColor(self._INDIGO),
                             ),
                         ]
                     )
@@ -1007,7 +988,7 @@ class ReportService:
                         ),
                         hAlign="LEFT",
                     )
-                    v_table.setStyle(self._asset_detail_table_style())
+                    v_table.setStyle(self._doc_table_style())
                     section.append(v_table)
 
                     if len(asset_vulns) > 10:
@@ -1181,7 +1162,7 @@ class ReportService:
                             ),
                             hAlign="LEFT",
                         )
-                        c_table.setStyle(self._asset_detail_table_style())
+                        c_table.setStyle(self._doc_table_style())
                         section.append(c_table)
                         section.append(Spacer(1, 0.04 * inch))
 
