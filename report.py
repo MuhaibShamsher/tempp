@@ -2099,67 +2099,6 @@ class ReportService:
             canvas.line(40, 34, A4[0] - 40, 34)
             canvas.restoreState()
 
-        # Compact inline cover block reused as a slim running header on content pages
-        cover_inner = [
-            [Paragraph("ARMOR", title_style)],
-            [Paragraph("Consolidated Security Report", tagline_style)],
-            [Spacer(1, 0.06 * inch)],
-            [
-                HRFlowable(
-                    width="100%",
-                    thickness=1.5,
-                    color=colors.HexColor(self._INDIGO),
-                    hAlign="CENTER",
-                    spaceAfter=10,
-                )
-            ],
-        ]
-        cover_table = Table(cover_inner, colWidths=[W])
-        cover_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(self._NAVY)),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 16),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 16),
-                    ("TOPPADDING", (0, 0), (0, 0), 20),
-                    ("BOTTOMPADDING", (0, -1), (-1, -1), 16),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ]
-            )
-        )
-        story.append(cover_table)
-
-        # Meta row — scan / generated / assessments
-        meta_rows = [
-            [
-                Paragraph("IP RANGE", meta_label_style),
-                Paragraph("SCAN TYPE", meta_label_style),
-                Paragraph("GENERATED", meta_label_style),
-            ],
-            [
-                Paragraph(context.scan.ip_range or "—", meta_value_style),
-                Paragraph(context.scan.scan_type or "—", meta_value_style),
-                Paragraph(f"{timezone.now():%Y-%m-%d %H:%M UTC}", meta_value_style),
-            ],
-        ]
-        meta_table = Table(meta_rows, colWidths=[W / 3] * 3)
-        meta_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#1e293b")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 12),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-                    ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#334155")),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LINEAFTER", (0, 0), (1, -1), 0.4, colors.HexColor("#334155")),
-                ]
-            )
-        )
-        story.append(meta_table)
-        story.append(Spacer(1, 0.18 * inch))
-
         # ══════════════════════════════════════════════════════════════════
         # EXECUTIVE SUMMARY
         # ══════════════════════════════════════════════════════════════════
