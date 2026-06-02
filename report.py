@@ -324,7 +324,6 @@ class ReportService:
                 "OS Name",
                 "Vendor",
                 "Severity",
-                "Active",
                 "Last Seen",
             ]
         ]
@@ -338,7 +337,6 @@ class ReportService:
                     asset.os_name or "-",
                     asset.vendor or "-",
                     asset.severity or "-",
-                    "Yes" if asset.is_active else "No",
                     self._format_last_seen(asset),
                 ]
             )
@@ -459,6 +457,7 @@ class ReportService:
         return colors.HexColor(self._sev_fg(severity))
 
     def _doc_table_style(self) -> TableStyle:
+        """Primary / summary tables — navy header, neutral row alternation."""
         return TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(self._NAVY)),
@@ -482,6 +481,38 @@ class ReportService:
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
         )
+
+    def _asset_detail_table_style(self) -> TableStyle:
+        """Per-asset detail tables — indigo header, tinted row alternation."""
+        return TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(self._INDIGO)),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 8.5),
+                ("FONTSIZE", (0, 1), (-1, -1), 8.5),
+                ("LEADING", (0, 0), (-1, -1), 12),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.5, colors.HexColor(self._NAVY)),
+                ("LINEBELOW", (0, 1), (-1, -1), 0.25, colors.HexColor(self._BORDER)),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -1),
+                    [colors.white, colors.HexColor(self._INDIGO_LT)],
+                ),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+
+    @staticmethod
+    def _col_widths(width: float, fracs: list[float]) -> list[float]:
+        """Column widths that sum exactly to the usable content width."""
+        total = sum(fracs)
+        return [width * f / total for f in fracs]
 
     def _card_box_style(self) -> TableStyle:
         """Full-width card with a coloured left accent border."""
@@ -528,11 +559,11 @@ class ReportService:
                     for cell in row
                 ]
             )
-        col_fracs = [0.11, 0.11, 0.13, 0.10, 0.10, 0.10, 0.08, 0.07, 0.20]
+        col_fracs = [0.12, 0.12, 0.14, 0.11, 0.11, 0.11, 0.09, 0.20]
         table = Table(
             tbl_rows,
             repeatRows=1,
-            colWidths=[width * f for f in col_fracs],
+            colWidths=self._col_widths(width, col_fracs),
             hAlign="LEFT",
         )
         table.setStyle(self._doc_table_style())
@@ -901,7 +932,7 @@ class ReportService:
             ]
             exposure_tbl = Table(
                 exposure_data,
-                colWidths=[W * 0.13, W * 0.25, W * 0.13, W * 0.49],
+                colWidths=self._col_widths(W, [0.13, 0.25, 0.13, 0.49]),
             )
             exposure_tbl.setStyle(
                 TableStyle(
@@ -971,17 +1002,12 @@ class ReportService:
                     v_table = Table(
                         v_rows,
                         repeatRows=1,
-                        colWidths=[
-                            W * 0.04,
-                            W * 0.36,
-                            W * 0.10,
-                            W * 0.16,
-                            W * 0.10,
-                            W * 0.10,
-                        ],
+                        colWidths=self._col_widths(
+                            W, [0.05, 0.40, 0.10, 0.17, 0.11, 0.17]
+                        ),
                         hAlign="LEFT",
                     )
-                    v_table.setStyle(self._doc_table_style())
+                    v_table.setStyle(self._asset_detail_table_style())
                     section.append(v_table)
 
                     if len(asset_vulns) > 10:
@@ -1150,10 +1176,12 @@ class ReportService:
                         c_table = Table(
                             c_rows,
                             repeatRows=1,
-                            colWidths=[W * 0.14, W * 0.24, W * 0.14, W * 0.48],
+                            colWidths=self._col_widths(
+                                W, [0.14, 0.24, 0.14, 0.48]
+                            ),
                             hAlign="LEFT",
                         )
-                        c_table.setStyle(self._doc_table_style())
+                        c_table.setStyle(self._asset_detail_table_style())
                         section.append(c_table)
                         section.append(Spacer(1, 0.04 * inch))
 
