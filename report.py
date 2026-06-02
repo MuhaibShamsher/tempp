@@ -373,6 +373,68 @@ class ReportService:
     _ORANGE = "#ea580c"  # high
     _BLUE = "#2563eb"  # low
     _GREY = "#64748b"  # info / none
+    _CALLOUT_PASS_BG = "#f0fdf4"  # compliance pass callout
+    _CALLOUT_PASS_BORDER = "#bbf7d0"
+    _CALLOUT_WARN_BG = "#fffbeb"  # recommendations callout
+    _CALLOUT_WARN_BORDER = "#fde68a"
+
+    def _heading1_style(self, parent: ParagraphStyle) -> ParagraphStyle:
+        """Level 1 — major document sections (Executive Summary, Asset Reports)."""
+        return ParagraphStyle(
+            "H1",
+            parent=parent,
+            fontSize=16,
+            leading=20,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor(self._NAVY),
+            spaceBefore=0,
+            spaceAfter=6,
+        )
+
+    def _heading2_style(self, parent: ParagraphStyle) -> ParagraphStyle:
+        """Level 2 — subsections (Asset Inventory, per-asset identity band label)."""
+        return ParagraphStyle(
+            "H2",
+            parent=parent,
+            fontSize=11,
+            leading=14,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor(self._SLATE),
+            spaceBefore=12,
+            spaceAfter=4,
+        )
+
+    def _heading3_style(self, parent: ParagraphStyle) -> ParagraphStyle:
+        """Level 3 — content blocks (Exposure, Vuln Findings, Compliance frameworks)."""
+        return ParagraphStyle(
+            "H3",
+            parent=parent,
+            fontSize=9.5,
+            leading=12,
+            fontName="Helvetica-Bold",
+            textColor=colors.HexColor(self._INDIGO),
+            spaceBefore=10,
+            spaceAfter=3,
+        )
+
+    def _table_header_style(self, parent: ParagraphStyle) -> ParagraphStyle:
+        """Unified table column header — white on navy (matches _doc_table_style)."""
+        return ParagraphStyle(
+            "TblHdr",
+            parent=parent,
+            fontSize=8.5,
+            leading=12,
+            fontName="Helvetica-Bold",
+            textColor=colors.white,
+        )
+
+    def _section_divider(self) -> HRFlowable:
+        return HRFlowable(
+            width="100%",
+            thickness=1.5,
+            color=colors.HexColor(self._INDIGO),
+            spaceAfter=10,
+        )
 
     def _sev_bg(self, severity: str | None) -> str:
         """Light background tint for severity badge cells."""
@@ -443,6 +505,39 @@ class ReportService:
     # ──────────────────────────────────────────────────────────────────────────
     # Unified per-asset section — asset + risk + compliance all together
     # ──────────────────────────────────────────────────────────────────────────
+    def _build_primary_assets_table(
+        self,
+        assets,
+        width: float,
+        body_style: ParagraphStyle,
+        field_value_style: ParagraphStyle,
+        note_style: ParagraphStyle,
+        table_header_style: ParagraphStyle,
+    ):
+        """Summary table listing every discovered asset with uniform styling."""
+        raw_rows = self._build_asset_inventory_rows(assets)
+        headers = raw_rows[0]
+        tbl_rows = [[Paragraph(h, table_header_style) for h in headers]]
+        for row in raw_rows[1:]:
+            tbl_rows.append(
+                [
+                    Paragraph(
+                        str(cell),
+                        field_value_style if cell not in ("-", "—") else note_style,
+                    )
+                    for cell in row
+                ]
+            )
+        col_fracs = [0.11, 0.11, 0.13, 0.10, 0.10, 0.10, 0.08, 0.07, 0.20]
+        table = Table(
+            tbl_rows,
+            repeatRows=1,
+            colWidths=[width * f for f in col_fracs],
+            hAlign="LEFT",
+        )
+        table.setStyle(self._doc_table_style())
+        return table
+
     def _build_asset_inventory_section(
         self, context: ReportContext, section_style, body_style
     ):
@@ -450,12 +545,16 @@ class ReportService:
         Render every discovered asset as a self-contained document block.
         Each block includes identity, network exposure, risk profile,
         top-10 vulnerabilities, and only the compliance controls that asset fails.
-        No separate Risk or Compliance sections are emitted by this renderer.
+        Each asset starts on a new page. No separate Risk or Compliance sections.
         """
         # ── Local style helpers ────────────────────────────────────────────
         W = (
             (595.27 - 40 - 40) / 72 * inch
         )  # exact usable content width (matches _build_pdf_bytes)
+
+        heading2_style = self._heading2_style(body_style)
+        heading3_style = self._heading3_style(body_style)
+        table_header_style = self._table_header_style(body_style)
 
         asset_header_style = ParagraphStyle(
             "AssetHeader",
@@ -472,16 +571,6 @@ class ReportService:
             leading=11,
             textColor=colors.HexColor("#94a3b8"),
             alignment=TA_RIGHT,
-        )
-        sub_heading_style = ParagraphStyle(
-            "SubHeading",
-            parent=body_style,
-            fontSize=9,
-            leading=11,
-            fontName="Helvetica-Bold",
-            textColor=colors.HexColor(self._INDIGO),
-            spaceBefore=8,
-            spaceAfter=3,
         )
         field_label_style = ParagraphStyle(
             "FL",
@@ -541,14 +630,7 @@ class ReportService:
 
         # ── Intro paragraph ────────────────────────────────────────────────
         section: list = [Paragraph("Asset Reports", section_style)]
-        section.append(
-            HRFlowable(
-                width="100%",
-                thickness=1.5,
-                color=colors.HexColor(self._INDIGO),
-                spaceAfter=10,
-            )
-        )
+        section.append(self._section_divider())
         section.append(
             Paragraph(
                 (
@@ -561,13 +643,29 @@ class ReportService:
                 body_style,
             )
         )
-        section.append(Spacer(1, 0.14 * inch))
+        section.append(Spacer(1, 0.12 * inch))
+
+        # ── Primary asset inventory table ──────────────────────────────────
+        section.append(Paragraph("Asset Inventory", heading2_style))
+        section.append(
+            self._build_primary_assets_table(
+                context.assets,
+                W,
+                body_style,
+                field_value_style,
+                note_style,
+                table_header_style,
+            )
+        )
 
         total = len(context.assets)
         for asset_idx, asset in enumerate(context.assets, start=1):
             ip = str(asset.ip_address)
             profile = risk_profile_by_asset.get(ip)
             asset_vulns = vulns_by_asset.get(ip, [])
+
+            # Each asset starts on a new page
+            section.append(PageBreak())
 
             # Deduplicate failing controls for this asset
             seen_ctrl: set[tuple[str, str]] = set()
@@ -578,16 +676,8 @@ class ReportService:
                     seen_ctrl.add(k)
                     unique_failing.append(r)
 
-            # ── Asset header band ──────────────────────────────────────────
-            severity_raw = (asset.severity or "").lower()
-            header_bg = colors.HexColor(
-                {
-                    "critical": "#7f1d1d",
-                    "high": "#7c2d12",
-                    "medium": "#78350f",
-                    "low": "#1e3a8a",
-                }.get(severity_raw, self._NAVY)
-            )
+            # ── Asset header band (uniform navy theme) ─────────────────────
+            header_bg = colors.HexColor(self._NAVY)
 
             header_left = Paragraph(
                 f"&#x25A0; &nbsp; {ip}"
@@ -765,16 +855,22 @@ class ReportService:
                                 "BACKGROUND",
                                 (0, 0),
                                 (-1, -1),
-                                colors.HexColor("#f0f9ff"),
+                                colors.HexColor(self._INDIGO_LT),
                             ),
                             (
                                 "LINEBEFORE",
                                 (0, 0),
                                 (0, -1),
                                 3,
-                                colors.HexColor("#0ea5e9"),
+                                colors.HexColor(self._INDIGO),
                             ),
-                            ("BOX", (0, 0), (-1, -1), 0.4, colors.HexColor("#bae6fd")),
+                            (
+                                "BOX",
+                                (0, 0),
+                                (-1, -1),
+                                0.4,
+                                colors.HexColor(self._BORDER),
+                            ),
                             ("LEFTPADDING", (0, 0), (-1, -1), 8),
                             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                             ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -785,7 +881,7 @@ class ReportService:
                 section.append(summary_box)
 
             # ── Network exposure ───────────────────────────────────────────
-            section.append(Paragraph("NETWORK EXPOSURE", sub_heading_style))
+            section.append(Paragraph("Network Exposure", heading3_style))
             open_count = asset.open_ports_count or 0
             filtered_count = asset.filtered_ports_count or 0
             port_list = self._format_port_list(asset)
@@ -815,7 +911,7 @@ class ReportService:
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                         ("LEFTPADDING", (0, 0), (-1, -1), 4),
                         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(self._ROW_ALT)),
                         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor(self._BORDER)),
                         (
                             "LINEBELOW",
@@ -832,7 +928,7 @@ class ReportService:
 
             # ── Vulnerabilities ────────────────────────────────────────────
             if context.risk_assessment is not None:
-                section.append(Paragraph("VULNERABILITY FINDINGS", sub_heading_style))
+                section.append(Paragraph("Vulnerability Findings", heading3_style))
                 if not asset_vulns:
                     section.append(
                         Paragraph(
@@ -841,7 +937,7 @@ class ReportService:
                     )
                 else:
                     v_header = [
-                        Paragraph(h, field_label_style)
+                        Paragraph(h, table_header_style)
                         for h in ["#", "Title", "Sev", "CVE", "Port", "Score"]
                     ]
                     v_rows = [v_header]
@@ -872,20 +968,6 @@ class ReportService:
                             ]
                         )
 
-                    # Severity row background colouring
-                    v_style_cmds = list(self._doc_table_style()._cmds)  # type: ignore[attr-defined]
-                    for row_idx, v in enumerate(asset_vulns[:10], 1):
-                        bg = self._sev_bg(v.severity)
-                        if bg != "#f8fafc":
-                            v_style_cmds.append(
-                                (
-                                    "BACKGROUND",
-                                    (2, row_idx),
-                                    (2, row_idx),
-                                    colors.HexColor(bg),
-                                )
-                            )
-
                     v_table = Table(
                         v_rows,
                         repeatRows=1,
@@ -899,7 +981,7 @@ class ReportService:
                         ],
                         hAlign="LEFT",
                     )
-                    v_table.setStyle(TableStyle(v_style_cmds))
+                    v_table.setStyle(self._doc_table_style())
                     section.append(v_table)
 
                     if len(asset_vulns) > 10:
@@ -944,7 +1026,7 @@ class ReportService:
                                             "BACKGROUND",
                                             (0, 0),
                                             (-1, -1),
-                                            colors.HexColor("#fefce8"),
+                                            colors.HexColor(self._CALLOUT_WARN_BG),
                                         ),
                                         (
                                             "LINEBEFORE",
@@ -958,7 +1040,7 @@ class ReportService:
                                             (0, 0),
                                             (-1, -1),
                                             0.4,
-                                            colors.HexColor("#fde68a"),
+                                            colors.HexColor(self._CALLOUT_WARN_BORDER),
                                         ),
                                         ("LEFTPADDING", (0, 0), (-1, -1), 8),
                                         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -971,7 +1053,7 @@ class ReportService:
 
             # ── Compliance violations ──────────────────────────────────────
             if context.compliance_assessment is not None:
-                section.append(Paragraph("COMPLIANCE VIOLATIONS", sub_heading_style))
+                section.append(Paragraph("Compliance Violations", heading3_style))
                 if not unique_failing:
                     ok_box = Table(
                         [
@@ -992,14 +1074,14 @@ class ReportService:
                                     "BACKGROUND",
                                     (0, 0),
                                     (-1, -1),
-                                    colors.HexColor("#f0fdf4"),
+                                    colors.HexColor(self._CALLOUT_PASS_BG),
                                 ),
                                 (
                                     "BOX",
                                     (0, 0),
                                     (-1, -1),
                                     0.4,
-                                    colors.HexColor("#bbf7d0"),
+                                    colors.HexColor(self._CALLOUT_PASS_BORDER),
                                 ),
                                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -1010,11 +1092,10 @@ class ReportService:
                     )
                     section.append(ok_box)
                 else:
-                    # Group failing controls by framework
-                    framework_map = {
-                        "iso27001": ("ISO 27001:2022", "#3b0764", "#f5f3ff"),
-                        "nist": ("NIST SP 800-53 Rev5", "#0c2340", "#eff6ff"),
-                        "cis": ("CIS Controls v8.1", "#052e16", "#f0fdf4"),
+                    framework_names = {
+                        "iso27001": "ISO 27001:2022",
+                        "nist": "NIST SP 800-53 Rev5",
+                        "cis": "CIS Controls v8.1",
                     }
                     framework_order = ["iso27001", "nist", "cis"]
                     results_by_framework: dict = {fw: [] for fw in framework_order}
@@ -1035,25 +1116,12 @@ class ReportService:
                         if not fw_results:
                             continue
 
-                        fw_display_name, fw_label_color, fw_bg_color = framework_map[
-                            fw_key
-                        ]
-
-                        # Framework sub-label
-                        fw_label_style = ParagraphStyle(
-                            f"FwLabel_{fw_key}",
-                            parent=body_style,
-                            fontSize=9,
-                            leading=12,
-                            fontName="Helvetica-Bold",
-                            textColor=colors.HexColor(fw_label_color),
-                            spaceBefore=6,
-                            spaceAfter=3,
+                        section.append(
+                            Paragraph(framework_names[fw_key], heading3_style)
                         )
-                        section.append(Paragraph(fw_display_name, fw_label_style))
 
                         c_header = [
-                            Paragraph(h, field_label_style) for h in c_header_cols
+                            Paragraph(h, table_header_style) for h in c_header_cols
                         ]
                         c_rows = [c_header]
                         for result in fw_results:
@@ -1079,39 +1147,15 @@ class ReportService:
                                 ]
                             )
 
-                        c_style_cmds = list(self._doc_table_style()._cmds)  # type: ignore[attr-defined]
-                        # Header background matches framework colour
-                        c_style_cmds.append(
-                            (
-                                "BACKGROUND",
-                                (0, 0),
-                                (-1, 0),
-                                colors.HexColor(fw_bg_color),
-                            )
-                        )
-                        # Tint every data row with a very light red
-                        for ri in range(1, len(c_rows)):
-                            c_style_cmds.append(
-                                (
-                                    "BACKGROUND",
-                                    (0, ri),
-                                    (1, ri),
-                                    colors.HexColor("#fff5f5"),
-                                )
-                            )
-
                         c_table = Table(
                             c_rows,
                             repeatRows=1,
                             colWidths=[W * 0.14, W * 0.24, W * 0.14, W * 0.48],
                             hAlign="LEFT",
                         )
-                        c_table.setStyle(TableStyle(c_style_cmds))
+                        c_table.setStyle(self._doc_table_style())
                         section.append(c_table)
                         section.append(Spacer(1, 0.04 * inch))
-
-            # ── Separator between assets ───────────────────────────────────
-            section.append(Spacer(1, 0.18 * inch))
 
         return section
 
@@ -1827,15 +1871,13 @@ class ReportService:
             leading=12,
             textColor=colors.HexColor("#e2e8f0"),
         )
-        section_style = ParagraphStyle(
-            "RSection",
-            parent=styles["Heading2"],
-            fontSize=14,
-            leading=18,
-            textColor=colors.HexColor(self._SLATE),
-            spaceBefore=18,
-            spaceAfter=6,
-            fontName="Helvetica-Bold",
+        section_style = self._heading1_style(
+            ParagraphStyle(
+                "RSection",
+                parent=styles["Heading2"],
+                spaceBefore=18,
+                spaceAfter=6,
+            )
         )
         body_style = ParagraphStyle(
             "RBody",
@@ -2117,14 +2159,7 @@ class ReportService:
         # EXECUTIVE SUMMARY
         # ══════════════════════════════════════════════════════════════════
         story.append(Paragraph("Executive Summary", section_style))
-        story.append(
-            HRFlowable(
-                width="100%",
-                thickness=1.5,
-                color=colors.HexColor(self._INDIGO),
-                spaceAfter=10,
-            )
-        )
+        story.append(self._section_divider())
 
         # Stat cards — 4 across
         ra = context.risk_assessment
@@ -2274,8 +2309,8 @@ class ReportService:
         story.append(Spacer(1, 0.1 * inch))
         status_rows = [
             [
-                Paragraph("Assessment", meta_label_style),
-                Paragraph("Status", meta_label_style),
+                Paragraph("Assessment", self._table_header_style(body_style)),
+                Paragraph("Status", self._table_header_style(body_style)),
             ]
         ]
         for label, available, note, ident in [
@@ -2301,30 +2336,7 @@ class ReportService:
             )
 
         status_tbl = Table(status_rows, colWidths=[W * 0.35, W * 0.65])
-        status_tbl.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(self._NAVY)),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 9),
-                    ("FONTSIZE", (0, 1), (-1, -1), 9),
-                    ("LEADING", (0, 0), (-1, -1), 13),
-                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor(self._BORDER)),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    (
-                        "ROWBACKGROUNDS",
-                        (0, 1),
-                        (-1, -1),
-                        [colors.white, colors.HexColor(self._ROW_ALT)],
-                    ),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                    ("TOPPADDING", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                ]
-            )
-        )
+        status_tbl.setStyle(self._doc_table_style())
         story.append(status_tbl)
 
         if context.risk_note:
