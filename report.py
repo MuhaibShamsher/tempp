@@ -681,8 +681,8 @@ class ReportService:
                     seen_ctrl.add(k)
                     unique_failing.append(r)
 
-            # ── Asset header band — indigo, distinct from Asset Inventory navy ──
-            header_bg = colors.HexColor(self._INDIGO)
+            # ── Asset header band — slate, distinct from Asset Inventory navy ──
+            header_bg = colors.HexColor(self._SLATE)
 
             header_left = Paragraph(
                 f"&#x25A0; &nbsp; {ip}"
@@ -950,14 +950,11 @@ class ReportService:
                 else:
                     v_header = [
                         Paragraph(h, table_header_style)
-                        for h in ["#", "Title", "Sev", "CVE", "Port", "Score"]
+                        for h in ["#", "Title", "Sev", "CVE", "Score"]
                     ]
                     v_rows = [v_header]
                     for idx, v in enumerate(asset_vulns[:10], 1):
                         cve_id = getattr(getattr(v, "cve", None), "cve_id", None) or "—"
-                        port_lbl = (
-                            f"{v.port.port_number}/{v.port.protocol}" if v.port else "—"
-                        )
                         sev = (v.severity or "").lower()
                         sev_style = ParagraphStyle(
                             f"Sev_{sev}_{idx}",
@@ -972,7 +969,6 @@ class ReportService:
                                 Paragraph(v.title or "—", field_value_style),
                                 Paragraph(sev.upper(), sev_style),
                                 Paragraph(cve_id, note_style),
-                                Paragraph(port_lbl, note_style),
                                 Paragraph(
                                     self._format_risk_value(v.armor_risk_score),
                                     field_value_style,
@@ -984,7 +980,7 @@ class ReportService:
                         v_rows,
                         repeatRows=1,
                         colWidths=self._col_widths(
-                            W, [0.05, 0.40, 0.10, 0.17, 0.11, 0.17]
+                            W, [0.05, 0.48, 0.10, 0.20, 0.17]
                         ),
                         hAlign="LEFT",
                     )
